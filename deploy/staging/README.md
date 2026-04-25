@@ -7,7 +7,7 @@ This directory contains the files expected on the staging EC2 host.
 - `docker-compose.staging.yml`: runs `postgres`, `backend`, and `caddy`
 - `Caddyfile`: HTTPS reverse proxy for the backend
 - `.env.example`: placeholder environment variables
-- `bootstrap-ec2.sh`: prepares Docker and `/opt/obra-expenses`
+- `bootstrap-ec2.sh`: prepares Docker and `/opt/obra-expenses` on Ubuntu, Debian, or Amazon Linux 2023
 
 ## Expected remote layout
 

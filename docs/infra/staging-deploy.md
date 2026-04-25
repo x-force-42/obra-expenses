@@ -21,7 +21,7 @@ Create one Linux EC2 instance manually.
 
 Suggested baseline:
 
-- Ubuntu 24.04 LTS
+- Ubuntu 24.04 LTS or Amazon Linux 2023
 - small instance size for staging
 - public IP, or an Elastic IP if you want a stable address
 - enough disk for Docker images, logs, and PostgreSQL data
@@ -94,6 +94,7 @@ This script:
 
 - installs Docker if needed
 - installs the Docker Compose plugin if needed
+- supports Ubuntu, Debian, and Amazon Linux 2023
 - creates `/opt/obra-expenses`
 - sets permissions for the current user
 
@@ -122,6 +123,7 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/obra_expenses
 SPRING_DATASOURCE_USERNAME=obra_expenses
 SPRING_DATASOURCE_PASSWORD=<strong-password>
 JWT_SECRET=<strong-random-secret>
+GOOGLE_CLIENT_ID=change_me
 APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://*.amplifyapp.com,http://localhost:5173
 ```
 
