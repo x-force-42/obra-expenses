@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+.vscode/
+.env
+.env.local
+.env.*.local
+.codex
+
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/*.tsbuildinfo
+
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+
+docker-data/
