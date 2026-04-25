@@ -21,6 +21,7 @@ Public endpoints:
 ```txt
 POST /api/auth/google
 GET  /api/public/dashboard/{token}
+GET  /api/health
 ```
 
 Dates must use ISO-8601 format.
@@ -81,6 +82,20 @@ Recommended status usage:
 404 Not Found: resource not found
 409 Conflict: duplicated category/stage name or similar conflict
 500 Internal Server Error: unexpected error
+```
+
+# Operational
+
+## GET /api/health
+
+Simple health endpoint for staging and operational checks.
+
+### Response
+
+```json
+{
+  "status": "UP"
+}
 ```
 
 # Auth

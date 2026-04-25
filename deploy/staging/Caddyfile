@@ -1,0 +1,13 @@
+{$API_DOMAIN} {
+    encode gzip
+
+    @health path /health
+    handle @health {
+        rewrite * /api/health
+        reverse_proxy backend:8080
+    }
+
+    handle {
+        reverse_proxy backend:8080
+    }
+}
