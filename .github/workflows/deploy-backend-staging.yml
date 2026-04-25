@@ -9,90 +9,42 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    name: Deploy backend on staging EC2
+    runs-on: [self-hosted, linux, x64, obra-expenses-staging]
     permissions:
       contents: read
-    env:
-      STAGING_EC2_HOST: ${{ secrets.STAGING_EC2_HOST }}
-      STAGING_EC2_USER: ${{ secrets.STAGING_EC2_USER }}
-      STAGING_EC2_SSH_KEY: ${{ secrets.STAGING_EC2_SSH_KEY }}
-      REMOTE_DIR: /opt/obra-expenses
+
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate required secrets
-        run: |
-          set -euo pipefail
-
-          missing=0
-
-          for name in STAGING_EC2_HOST STAGING_EC2_USER STAGING_EC2_SSH_KEY; do
-            value="${!name:-}"
-
-            if [ -z "${value}" ]; then
-              echo "::error::Missing required GitHub secret: ${name}"
-              missing=1
-            fi
-          done
-
-          if [ "${missing}" -ne 0 ]; then
-            exit 1
-          fi
-
-      - name: Prepare SSH key
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.ssh"
-          printf '%s\n' "${STAGING_EC2_SSH_KEY}" > "${HOME}/.ssh/staging-ec2"
-          chmod 600 "${HOME}/.ssh/staging-ec2"
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Build backend image
         run: docker build -t obra-expenses-backend:staging ./backend
 
-      - name: Save backend image
-        run: docker save obra-expenses-backend:staging | gzip > backend-image.tar.gz
-
-      - name: Ensure remote directory exists
+      - name: Prepare deploy directory
         run: |
           set -euo pipefail
-          ssh -i "${HOME}/.ssh/staging-ec2" \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            "${STAGING_EC2_USER}@${STAGING_EC2_HOST}" \
-            "mkdir -p ${REMOTE_DIR}"
 
-      - name: Copy deploy assets to EC2
+          mkdir -p /opt/obra-expenses
+
+          cp deploy/staging/docker-compose.staging.yml /opt/obra-expenses/
+          cp deploy/staging/Caddyfile /opt/obra-expenses/
+          cp deploy/staging/.env.example /opt/obra-expenses/
+          cp deploy/staging/README.md /opt/obra-expenses/
+
+      - name: Validate environment file
         run: |
           set -euo pipefail
-          scp -i "${HOME}/.ssh/staging-ec2" \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            backend-image.tar.gz \
-            deploy/staging/docker-compose.staging.yml \
-            deploy/staging/Caddyfile \
-            deploy/staging/.env.example \
-            deploy/staging/bootstrap-ec2.sh \
-            deploy/staging/README.md \
-            "${STAGING_EC2_USER}@${STAGING_EC2_HOST}:${REMOTE_DIR}/"
 
-      - name: Deploy on EC2
+          if [ ! -f /opt/obra-expenses/.env ]; then
+            echo "::error::Missing /opt/obra-expenses/.env. Create it manually on the EC2 instance before running this workflow."
+            exit 1
+          fi
+
+      - name: Deploy with Docker Compose
         run: |
           set -euo pipefail
-          ssh -i "${HOME}/.ssh/staging-ec2" \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            "${STAGING_EC2_USER}@${STAGING_EC2_HOST}" <<'EOF'
-              set -euo pipefail
 
-              cd /opt/obra-expenses
-
-              if [ ! -f .env ]; then
-                echo "Remote file /opt/obra-expenses/.env was not found. Create it manually before running this workflow." >&2
-                exit 1
-              fi
-
-              docker load -i backend-image.tar.gz
-              docker compose --env-file .env -f docker-compose.staging.yml up -d
-              docker image prune -f
-          EOF
-
+          cd /opt/obra-expenses
+          docker compose --env-file .env -f docker-compose.staging.yml up -d
+          docker image prune -f

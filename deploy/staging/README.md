@@ -14,9 +14,9 @@ This directory contains the files expected on the staging EC2 host.
 ```txt
 /opt/obra-expenses/
 ├── .env
-├── backend-image.tar.gz
 ├── docker-compose.staging.yml
 ├── Caddyfile
+├── .env.example
 └── README.md
 ```
 
@@ -26,4 +26,4 @@ This directory contains the files expected on the staging EC2 host.
 - Only Caddy publishes ports `80` and `443`.
 - Postgres and backend stay private inside the Docker network.
 - Public `GET /health` is rewritten by Caddy to backend `GET /api/health`.
-- The GitHub Actions deploy workflow copies these files to the EC2 host and runs `docker compose`.
+- The self-hosted GitHub Actions deploy workflow copies these files to `/opt/obra-expenses` and runs `docker compose`.

@@ -13,6 +13,8 @@ Reverse proxy: Caddy with HTTPS
 
 This keeps the first staging environment simple and cheap while avoiding AWS credentials in the application runtime.
 
+The backend deploy workflow runs on a self-hosted GitHub Actions runner installed on the staging EC2 instance.
+
 ## What must be created manually in AWS
 
 ### EC2
@@ -69,17 +71,16 @@ deploy/staging/bootstrap-ec2.sh
 amplify.yml
 ```
 
-## GitHub secrets
+## GitHub Actions runner
 
-Configure these repository secrets manually:
+Register a self-hosted GitHub Actions runner on the staging EC2 instance with these labels:
 
-- `STAGING_EC2_HOST`
-- `STAGING_EC2_USER`
-- `STAGING_EC2_SSH_KEY`
+- `self-hosted`
+- `linux`
+- `x64`
+- `obra-expenses-staging`
 
-Use a private SSH key that matches the public key allowed on the EC2 host.
-
-Do not commit the key.
+The deploy workflow is manual-only and must run only on this staging runner.
 
 ## Preparing the EC2 host
 
@@ -131,7 +132,7 @@ Do not commit this file.
 
 ## Running the backend deploy workflow
 
-After the EC2 host and GitHub secrets are ready:
+After the EC2 host, self-hosted runner, and `/opt/obra-expenses/.env` are ready:
 
 1. Open GitHub Actions.
 2. Select `Deploy Backend Staging`.
@@ -140,15 +141,14 @@ After the EC2 host and GitHub secrets are ready:
 The workflow will:
 
 - build the backend Docker image
-- save it as `backend-image.tar.gz`
-- copy the image and deploy files to `/opt/obra-expenses`
-- connect over SSH
-- run `docker load`
+- copy the deploy files to `/opt/obra-expenses`
+- validate that `/opt/obra-expenses/.env` already exists
 - run `docker compose --env-file .env -f docker-compose.staging.yml up -d`
+- run `docker image prune -f`
 
-The workflow fails if the required GitHub secrets are missing.
+The workflow does not overwrite `/opt/obra-expenses/.env`.
 
-The workflow also fails if `/opt/obra-expenses/.env` does not exist on the server.
+If `/opt/obra-expenses/.env` does not exist, the workflow fails with a clear message and stops before deploy.
 
 ## Configuring Amplify
 
