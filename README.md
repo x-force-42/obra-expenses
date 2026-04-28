@@ -175,3 +175,33 @@ See:
 ```txt
 docs/planning/first-vertical-slice.md
 ```
+
+## Local backend
+
+For day-to-day backend development, the fastest loop is still:
+
+```bash
+docker compose up -d postgres
+cd backend
+./mvnw spring-boot:run
+```
+
+If you want a single command to run PostgreSQL and the backend together, use:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+Backend health check:
+
+```bash
+curl http://localhost:8080/api/health
+```
+
+Stop the local stack:
+
+```bash
+docker compose -f docker-compose.local.yml down
+```
+
+The local compose stack loads backend secrets and app settings from `backend/.env`. Without a real `GOOGLE_CLIENT_ID`, the backend still boots, but Google login remains placeholder-only.
