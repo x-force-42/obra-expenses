@@ -18,7 +18,7 @@ export function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const redirectPath =
-    (location.state as LoginLocationState | null)?.from?.pathname ?? "/dashboard";
+    (location.state as LoginLocationState | null)?.from?.pathname ?? "/expenses";
 
   useEffect(() => {
     if (isHydrated && isAuthenticated) {

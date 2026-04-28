@@ -70,4 +70,12 @@ public class Construction {
     public void setCurrentStage(Stage currentStage) {
         this.currentStage = currentStage;
     }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 }

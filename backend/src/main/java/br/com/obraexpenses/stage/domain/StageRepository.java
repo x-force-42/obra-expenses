@@ -9,5 +9,9 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
 
     List<Stage> findAllByConstructionIdOrderByIdAsc(Long constructionId);
 
+    List<Stage> findAllByConstructionIdAndActiveOrderByIdAsc(Long constructionId, boolean active);
+
     Optional<Stage> findByConstructionIdAndName(Long constructionId, String name);
+
+    Optional<Stage> findByIdAndConstructionId(Long id, Long constructionId);
 }
