@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "@/app/App";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/features/auth";
 import { mockAuthSession, mockAuthToken } from "@/mocks/data/auth.mock";
+import { getMockDashboard } from "@/mocks/data/dashboard.mock";
 import { resetMockExpenses } from "@/mocks/data/expenses.mock";
 import { server } from "@/mocks/server";
 
@@ -24,95 +26,62 @@ describe("DashboardPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /novo gasto/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /despesas/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /mês/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /últimos 30 dias/i }),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText(/distribuição por categoria/i),
     ).toBeInTheDocument();
+    expect(await screen.findByText(/distribuição por etapa/i)).toBeInTheDocument();
+    expect(await screen.findByText(/evolução mensal/i)).toBeInTheDocument();
     expect(await screen.findByText(/últimos lançamentos/i)).toBeInTheDocument();
     expect(await screen.findAllByText(/locação container/i)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/concreto usinado/i)).not.toHaveLength(0);
     expect(
       await screen.findByText(/minha obra · etapa atual: fundação/i),
     ).toBeInTheDocument();
     expect(await screen.findAllByText(mockAuthSession.user.name)).not.toHaveLength(0);
   });
 
-  it("renders the calculated summary metrics from the loaded expenses", async () => {
-    server.use(
-      http.get(/.*\/api\/expenses$/, () =>
-        HttpResponse.json({
-          content: [
-            {
-              id: 1,
-              amount: 300,
-              description: "Concreto",
-              category: {
-                id: 1,
-                name: "Material",
-              },
-              stage: {
-                id: 1,
-                name: "Fundação",
-              },
-              occurredAt: "2026-04-25T10:00:00Z",
-            },
-            {
-              id: 2,
-              amount: 150,
-              description: "Ferro",
-              category: {
-                id: 1,
-                name: "Material",
-              },
-              stage: {
-                id: 1,
-                name: "Fundação",
-              },
-              occurredAt: "2026-04-24T10:00:00Z",
-            },
-            {
-              id: 3,
-              amount: 250,
-              description: "Equipe",
-              category: {
-                id: 2,
-                name: "Mão de Obra",
-              },
-              stage: {
-                id: 2,
-                name: "Estrutura",
-              },
-              occurredAt: "2026-04-23T10:00:00Z",
-            },
-          ],
-          page: 0,
-          size: 20,
-          totalElements: 8,
-          totalPages: 1,
-        }),
-      ),
-    );
-
+  it("updates the dashboard when the period filter changes", async () => {
+    const user = userEvent.setup();
     render(<App />);
 
+    expect(await screen.findAllByText(/concreto usinado/i)).not.toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: /últimos 30 dias/i }));
+
     expect(
-      await screen.findByText(/baseado nos lançamentos carregados/i),
+      await screen.findByRole("button", { name: /últimos 30 dias/i, pressed: true }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/r\$\s*700,00/i)).toBeInTheDocument();
-    expect(screen.getByText(/r\$\s*233,33/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/r\$\s*450,00/i)).not.toHaveLength(0);
-    expect(screen.getAllByText(/r\$\s*300,00/i)).not.toHaveLength(0);
-    expect(screen.getAllByText(/material/i)).not.toHaveLength(0);
-    expect(screen.getByText(/64%/i)).toBeInTheDocument();
+    expect(await screen.findAllByText(/cobertura provisória/i)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/ferramentas/i)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/cobertura/i)).not.toHaveLength(0);
+    expect(screen.getByText(/r\$\s*862,50/i)).toBeInTheDocument();
   });
 
   it("renders the empty dashboard state with a primary action", async () => {
     server.use(
-      http.get(/.*\/api\/expenses$/, () =>
+      http.get(/.*\/api\/dashboard$/, () =>
         HttpResponse.json({
-          content: [],
-          page: 0,
-          size: 20,
-          totalElements: 0,
-          totalPages: 0,
+          ...getMockDashboard("MONTH"),
+          monthSpent: 0,
+          totalSpent: 0,
+          averageTicket: 0,
+          mainCategory: null,
+          mainStage: null,
+          currentVsPreviousMonth: {
+            currentMonthAmount: 0,
+            previousMonthAmount: 0,
+            differenceAmount: 0,
+            differencePercentage: 0,
+          },
+          byCategory: [],
+          byStage: [],
+          monthlyEvolution: [],
+          latestExpenses: [],
+          topExpenses: [],
         }),
       ),
     );
@@ -129,7 +98,7 @@ describe("DashboardPage", () => {
 
   it("renders a consistent error state when dashboard loading fails", async () => {
     server.use(
-      http.get(/.*\/api\/expenses$/, () =>
+      http.get(/.*\/api\/dashboard$/, () =>
         HttpResponse.json(
           {
             message: "Falha ao carregar dashboard.",

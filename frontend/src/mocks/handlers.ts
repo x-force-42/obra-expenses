@@ -2,6 +2,8 @@ import { http, HttpResponse, type RequestHandler } from "msw";
 
 import { mockCategories } from "@/mocks/data/categories.mock";
 import { mockCurrentConstruction } from "@/mocks/data/construction.mock";
+import { type DashboardPeriod } from "@/features/dashboard";
+import { getMockDashboard } from "@/mocks/data/dashboard.mock";
 import {
   addMockExpense,
   listMockExpenses,
@@ -109,6 +111,26 @@ export const handlers: RequestHandler[] = [
       totalElements: expenses.length,
       totalPages: expenses.length === 0 ? 0 : 1,
     });
+  }),
+  http.get(/.*\/api\/dashboard$/, ({ request }) => {
+    const authorization = request.headers.get("authorization");
+
+    if (authorization !== `Bearer ${mockAuthToken}`) {
+      return HttpResponse.json(
+        {
+          message: "Unauthorized",
+        },
+        { status: 401 },
+      );
+    }
+
+    const requestedPeriod = new URL(request.url).searchParams.get("period");
+    const period: DashboardPeriod =
+      requestedPeriod === "LAST_30_DAYS" || requestedPeriod === "ALL"
+        ? requestedPeriod
+        : "MONTH";
+
+    return HttpResponse.json(getMockDashboard(period));
   }),
   http.post(/.*\/api\/expenses$/, async ({ request }) => {
     const authorization = request.headers.get("authorization");

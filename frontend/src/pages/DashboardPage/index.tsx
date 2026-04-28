@@ -1,10 +1,19 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { AuthenticatedShell } from "@/app/AuthenticatedShell";
 import { useAuthSession } from "@/features/auth";
-import { listExpenses, type ExpenseListItem } from "@/features/expenses";
-import { buttonVariants } from "@/shared/components/ui/button";
+import {
+  getDashboard,
+  type DashboardBreakdownItem,
+  type DashboardExpenseItem,
+  type DashboardPeriod,
+} from "@/features/dashboard";
+import {
+  Button,
+  buttonVariants,
+} from "@/shared/components/ui/button";
 import {
   Surface,
   SurfaceDescription,
@@ -13,35 +22,36 @@ import {
 import {
   formatCurrency,
   formatDate,
-  formatDayAndMonth,
 } from "@/shared/lib/formatters";
 import { cn } from "@/shared/lib/utils";
 
-function getExpensesByDate(expenses: ExpenseListItem[]) {
-  const totals = new Map<string, number>();
+const PERIOD_OPTIONS: Array<{ label: string; value: DashboardPeriod }> = [
+  { label: "Mês", value: "MONTH" },
+  { label: "Últimos 30 dias", value: "LAST_30_DAYS" },
+  { label: "Tudo", value: "ALL" },
+];
 
-  expenses.forEach((expense) => {
-    const key = expense.occurredAt.slice(0, 10);
-    totals.set(key, (totals.get(key) ?? 0) + expense.amount);
-  });
-
-  return [...totals.entries()]
-    .sort(([firstDate], [secondDate]) => firstDate.localeCompare(secondDate))
-    .map(([date, amount]) => ({ amount, date }))
-    .slice(-5);
+function formatMonthLabel(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}-01T00:00:00Z`));
 }
 
-function getExpensesByCategory(expenses: ExpenseListItem[]) {
-  const totals = new Map<string, number>();
+function formatSignedCurrency(value: number) {
+  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${prefix}${formatCurrency(Math.abs(value))}`;
+}
 
-  expenses.forEach((expense) => {
-    const key = expense.category.name;
-    totals.set(key, (totals.get(key) ?? 0) + expense.amount);
+function formatSignedPercentage(value: number) {
+  const formatter = new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
   });
+  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
 
-  return [...totals.entries()]
-    .map(([category, amount]) => ({ amount, category }))
-    .sort((first, second) => second.amount - first.amount);
+  return `${prefix}${formatter.format(Math.abs(value))}%`;
 }
 
 function MetricCard({
@@ -70,7 +80,7 @@ function ExpenseLineItem({
   expense,
   highlightAmount = false,
 }: {
-  expense: ExpenseListItem;
+  expense: DashboardExpenseItem;
   highlightAmount?: boolean;
 }) {
   return (
@@ -81,7 +91,7 @@ function ExpenseLineItem({
             {expense.description || "Gasto sem descrição"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {expense.category.name} · {expense.stage.name}
+            {expense.categoryName} · {expense.stageName}
           </p>
         </div>
         <p
@@ -100,42 +110,204 @@ function ExpenseLineItem({
   );
 }
 
-export function DashboardPage() {
-  const { accessToken, currentConstruction } = useAuthSession();
+function FilterButtonGroup({
+  currentPeriod,
+  onChange,
+}: {
+  currentPeriod: DashboardPeriod;
+  onChange: (period: DashboardPeriod) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {PERIOD_OPTIONS.map((option) => (
+        <Button
+          aria-pressed={currentPeriod === option.value}
+          className={cn(
+            currentPeriod === option.value &&
+              "bg-slate-900 text-white hover:bg-slate-800",
+          )}
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          variant={currentPeriod === option.value ? "secondary" : "outline"}
+        >
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
-  const expensesQuery = useQuery({
-    queryKey: ["expenses", accessToken],
-    queryFn: () => listExpenses(accessToken!),
+function HighlightCard({
+  emptyLabel,
+  item,
+  label,
+}: {
+  emptyLabel: string;
+  item: DashboardBreakdownItem | null;
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/70 px-5 py-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-3 text-lg font-semibold tracking-tight text-foreground">
+        {item?.name ?? emptyLabel}
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {item
+          ? `${formatCurrency(item.amount)} · ${item.percentage.toFixed(2).replace(".", ",")}%`
+          : "Nenhum gasto encontrado neste período."}
+      </p>
+    </div>
+  );
+}
+
+function BreakdownList({
+  emptyMessage,
+  items,
+}: {
+  emptyMessage: string;
+  items: Array<{
+    amount: number;
+    id: number;
+    name: string;
+    percentage: number;
+  }>;
+}) {
+  const maxAmount = items[0]?.amount ?? 0;
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="mt-6 space-y-4">
+      {items.map((item) => (
+        <li key={item.id}>
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <p className="font-medium text-foreground">{item.name}</p>
+            <p className="text-muted-foreground">
+              {formatCurrency(item.amount)} ·{" "}
+              {item.percentage.toFixed(2).replace(".", ",")}%
+            </p>
+          </div>
+          <div className="mt-2 h-2 rounded-full bg-slate-100">
+            <div
+              className="h-2 rounded-full bg-slate-900"
+              style={{
+                width: `${
+                  maxAmount > 0 ? Math.max((item.amount / maxAmount) * 100, 12) : 0
+                }%`,
+              }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function MonthlyEvolution({
+  items,
+}: {
+  items: Array<{
+    amount: number;
+    month: string;
+  }>;
+}) {
+  const maxAmount = items.reduce((max, item) => Math.max(max, item.amount), 0);
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-muted-foreground">
+        Nenhum gasto encontrado no período selecionado.
+      </div>
+    );
+  }
+
+  return (
+    <ul className="mt-6 space-y-4">
+      {items.map((item) => (
+        <li key={item.month}>
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <p className="font-medium capitalize text-foreground">
+              {formatMonthLabel(item.month)}
+            </p>
+            <p className="text-muted-foreground">{formatCurrency(item.amount)}</p>
+          </div>
+          <div className="mt-2 h-2 rounded-full bg-slate-100">
+            <div
+              className="h-2 rounded-full bg-primary"
+              style={{
+                width: `${
+                  maxAmount > 0 ? Math.max((item.amount / maxAmount) * 100, 14) : 0
+                }%`,
+              }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ExpenseList({
+  emptyMessage,
+  expenses,
+  highlightAmount = false,
+}: {
+  emptyMessage: string;
+  expenses: DashboardExpenseItem[];
+  highlightAmount?: boolean;
+}) {
+  if (expenses.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="mt-6 space-y-3">
+      {expenses.map((expense) => (
+        <ExpenseLineItem
+          expense={expense}
+          highlightAmount={highlightAmount}
+          key={expense.id}
+        />
+      ))}
+    </ul>
+  );
+}
+
+export function DashboardPage() {
+  const { accessToken } = useAuthSession();
+  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>("MONTH");
+
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard", accessToken, selectedPeriod],
+    queryFn: () => getDashboard(accessToken!, selectedPeriod),
     enabled: Boolean(accessToken),
   });
 
-  const expenses = [...(expensesQuery.data?.content ?? [])].sort(
-    (first, second) =>
-      new Date(second.occurredAt).getTime() - new Date(first.occurredAt).getTime(),
-  );
-  const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const averageSpent = expenses.length > 0 ? totalSpent / expenses.length : 0;
-  const currentStageTotal = expenses.reduce(
-    (sum, expense) =>
-      expense.stage.name === currentConstruction?.currentStage?.name
-        ? sum + expense.amount
-        : sum,
-    0,
-  );
-  const categoryTotals = getExpensesByCategory(expenses);
-  const dailyTotals = getExpensesByDate(expenses);
-  const topCategory = categoryTotals[0];
-  const topExpenses = [...expenses]
-    .sort((first, second) => second.amount - first.amount)
-    .slice(0, 3);
-  const recentExpenses = expenses.slice(0, 5);
-  const maxCategoryTotal = categoryTotals[0]?.amount ?? 0;
-  const maxDailyTotal = dailyTotals.reduce(
-    (max, item) => Math.max(max, item.amount),
-    0,
-  );
-  const isPartialData =
-    (expensesQuery.data?.totalElements ?? expenses.length) > expenses.length;
+  const dashboard = dashboardQuery.data;
+  const hasExpenses = (dashboard?.totalSpent ?? 0) > 0;
+  const comparison = dashboard?.currentVsPreviousMonth;
+  const periodLabel =
+    PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label.toLowerCase() ??
+    "mês";
+  const comparisonToneClassName =
+    comparison && comparison.differenceAmount < 0
+      ? "text-emerald-700"
+      : comparison && comparison.differenceAmount > 0
+        ? "text-amber-700"
+        : "text-foreground";
 
   return (
     <AuthenticatedShell
@@ -145,36 +317,51 @@ export function DashboardPage() {
         </Link>
       }
       eyebrow="Visão geral"
-      subtitle="Veja os números principais primeiro, entenda a concentração dos gastos e desça para os detalhes só quando precisar."
+      subtitle="Comece pelos números principais, refine o período quando precisar e desça para os detalhes só depois."
       title="Dashboard"
     >
-      {expensesQuery.isLoading ? (
+      <section className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            Período
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            O total acumulado sempre considera toda a obra.
+          </p>
+        </div>
+        <FilterButtonGroup
+          currentPeriod={selectedPeriod}
+          onChange={setSelectedPeriod}
+        />
+      </section>
+
+      {dashboardQuery.isLoading ? (
         <Surface className="px-6 py-8">
           <SurfaceTitle>Carregando visão financeira</SurfaceTitle>
           <SurfaceDescription className="mt-2">
-            Estamos reunindo os lançamentos mais recentes da obra.
+            Estamos consolidando os indicadores principais da obra.
           </SurfaceDescription>
         </Surface>
       ) : null}
 
-      {!expensesQuery.isLoading && expensesQuery.error ? (
+      {!dashboardQuery.isLoading && dashboardQuery.error ? (
         <Surface className="border-destructive/20 px-6 py-8">
           <SurfaceTitle>Não foi possível carregar o dashboard</SurfaceTitle>
           <SurfaceDescription className="mt-2 text-destructive">
-            {expensesQuery.error instanceof Error
-              ? expensesQuery.error.message
+            {dashboardQuery.error instanceof Error
+              ? dashboardQuery.error.message
               : "Tente novamente em instantes."}
           </SurfaceDescription>
         </Surface>
       ) : null}
 
-      {!expensesQuery.isLoading && !expensesQuery.error && expenses.length === 0 ? (
+      {!dashboardQuery.isLoading && !dashboardQuery.error && !hasExpenses ? (
         <Surface className="p-6 sm:p-8">
           <SurfaceTitle>Seu dashboard começa com o primeiro lançamento</SurfaceTitle>
           <SurfaceDescription className="mt-3 max-w-2xl">
             Ainda não há despesas registradas. Assim que o primeiro gasto entrar,
-            esta tela passa a destacar total investido, categorias que mais pesam
-            e lançamentos que exigem atenção.
+            esta tela passa a destacar total investido, concentração por categoria,
+            evolução mensal e lançamentos que exigem atenção.
           </SurfaceDescription>
           <div className="mt-6">
             <Link className={buttonVariants({ variant: "secondary" })} to="/expenses">
@@ -184,122 +371,119 @@ export function DashboardPage() {
         </Surface>
       ) : null}
 
-      {!expensesQuery.isLoading && !expensesQuery.error && expenses.length > 0 ? (
+      {!dashboardQuery.isLoading && !dashboardQuery.error && dashboard ? (
         <div className="space-y-6">
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              helper={`${expenses.length} lançamento${expenses.length > 1 ? "s" : ""} na visão atual`}
-              label="Total lançado"
-              value={formatCurrency(totalSpent)}
+              helper="Mês corrente da obra, independente do filtro selecionado."
+              label="Gasto no mês"
+              value={formatCurrency(dashboard.monthSpent)}
             />
             <MetricCard
-              helper={
-                topCategory
-                  ? `${topCategory.category} concentra a maior fatia`
-                  : "Sem categoria dominante ainda"
-              }
+              helper="Sempre considera todo o histórico da construção."
+              label="Total acumulado"
+              value={formatCurrency(dashboard.totalSpent)}
+            />
+            <MetricCard
+              helper={`Média dos lançamentos em ${periodLabel}.`}
               label="Ticket médio"
-              value={formatCurrency(averageSpent)}
+              value={formatCurrency(dashboard.averageTicket)}
             />
             <MetricCard
-              helper={
-                currentConstruction?.currentStage?.name
-                  ? `Etapa atual: ${currentConstruction.currentStage.name}`
-                  : "Sem etapa atual definida"
-              }
-              label="Etapa atual"
-              value={formatCurrency(currentStageTotal)}
-            />
-            <MetricCard
-              helper={
-                expenses[0]
-                  ? `Último lançamento em ${formatDate(expenses[0].occurredAt)}`
-                  : "Sem lançamentos recentes"
-              }
-              label="Maior gasto"
-              value={formatCurrency(topExpenses[0]?.amount ?? 0)}
+              helper={`Atual: ${formatCurrency(
+                comparison?.currentMonthAmount ?? 0,
+              )} · Anterior: ${formatCurrency(
+                comparison?.previousMonthAmount ?? 0,
+              )}`}
+              label="Comparação mensal"
+              value={formatSignedCurrency(comparison?.differenceAmount ?? 0)}
             />
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <Surface className="p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <SurfaceTitle>Distribuição por categoria</SurfaceTitle>
-                  <SurfaceDescription className="mt-2">
-                    Identifique rapidamente para onde o dinheiro está indo.
-                  </SurfaceDescription>
-                </div>
-                {isPartialData ? (
-                  <span className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
-                    Baseado nos lançamentos carregados
-                  </span>
-                ) : null}
-              </div>
+              <SurfaceTitle>Distribuição por categoria</SurfaceTitle>
+              <SurfaceDescription className="mt-2">
+                Veja rapidamente onde o dinheiro está concentrado.
+              </SurfaceDescription>
 
-              <ul className="mt-6 space-y-4">
-                {categoryTotals.map((item) => {
-                  const percentage =
-                    totalSpent > 0 ? Math.round((item.amount / totalSpent) * 100) : 0;
-
-                  return (
-                    <li key={item.category}>
-                      <div className="flex items-center justify-between gap-4 text-sm">
-                        <p className="font-medium text-foreground">{item.category}</p>
-                        <p className="text-muted-foreground">
-                          {formatCurrency(item.amount)} · {percentage}%
-                        </p>
-                      </div>
-                      <div className="mt-2 h-2 rounded-full bg-slate-100">
-                        <div
-                          className="h-2 rounded-full bg-slate-900"
-                          style={{
-                            width: `${
-                              maxCategoryTotal > 0
-                                ? Math.max((item.amount / maxCategoryTotal) * 100, 12)
-                                : 0
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <BreakdownList
+                emptyMessage="Nenhum gasto encontrado no período selecionado."
+                items={dashboard.byCategory.map((item) => ({
+                  amount: item.amount,
+                  id: item.categoryId,
+                  name: item.categoryName,
+                  percentage: item.percentage,
+                }))}
+              />
             </Surface>
 
             <Surface className="p-6">
-              <SurfaceTitle>Evolução recente</SurfaceTitle>
+              <SurfaceTitle>Distribuição por etapa</SurfaceTitle>
               <SurfaceDescription className="mt-2">
-                Leitura rápida dos lançamentos mais recentes no tempo.
+                Acompanhe quais frentes da obra estão puxando o custo agora.
               </SurfaceDescription>
 
-              <ul className="mt-6 space-y-4">
-                {dailyTotals.map((item) => (
-                  <li key={item.date}>
-                    <div className="flex items-center justify-between gap-4 text-sm">
-                      <p className="font-medium text-foreground">
-                        {formatDayAndMonth(item.date)}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {formatCurrency(item.amount)}
-                      </p>
-                    </div>
-                    <div className="mt-2 h-2 rounded-full bg-slate-100">
-                      <div
-                        className="h-2 rounded-full bg-primary"
-                        style={{
-                          width: `${
-                            maxDailyTotal > 0
-                              ? Math.max((item.amount / maxDailyTotal) * 100, 14)
-                              : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <BreakdownList
+                emptyMessage="Nenhum gasto encontrado no período selecionado."
+                items={dashboard.byStage.map((item) => ({
+                  amount: item.amount,
+                  id: item.stageId,
+                  name: item.stageName,
+                  percentage: item.percentage,
+                }))}
+              />
+            </Surface>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <Surface className="p-6">
+              <SurfaceTitle>Leituras rápidas</SurfaceTitle>
+              <SurfaceDescription className="mt-2">
+                Resumo do que merece atenção imediata no período atual.
+              </SurfaceDescription>
+
+              <div className="mt-6 grid gap-4">
+                <HighlightCard
+                  emptyLabel="Sem categoria dominante"
+                  item={dashboard.mainCategory}
+                  label="Categoria principal"
+                />
+                <HighlightCard
+                  emptyLabel="Sem etapa dominante"
+                  item={dashboard.mainStage}
+                  label="Etapa principal"
+                />
+                <div className="rounded-2xl border border-border/70 bg-background/70 px-5 py-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Mês atual vs anterior
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-3 text-lg font-semibold tracking-tight",
+                      comparisonToneClassName,
+                    )}
+                  >
+                    {formatSignedPercentage(
+                      comparison?.differencePercentage ?? 0,
+                    )}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Diferença de{" "}
+                    {formatSignedCurrency(comparison?.differenceAmount ?? 0)}{" "}
+                    entre os dois meses.
+                  </p>
+                </div>
+              </div>
+            </Surface>
+
+            <Surface className="p-6">
+              <SurfaceTitle>Evolução mensal</SurfaceTitle>
+              <SurfaceDescription className="mt-2">
+                Leitura rápida da progressão dos gastos ao longo do tempo.
+              </SurfaceDescription>
+
+              <MonthlyEvolution items={dashboard.monthlyEvolution} />
             </Surface>
           </section>
 
@@ -323,28 +507,23 @@ export function DashboardPage() {
                 </Link>
               </div>
 
-              <ul className="mt-6 space-y-3">
-                {recentExpenses.map((expense) => (
-                  <ExpenseLineItem expense={expense} key={expense.id} />
-                ))}
-              </ul>
+              <ExpenseList
+                emptyMessage="Nenhum gasto encontrado no período selecionado."
+                expenses={dashboard.latestExpenses}
+              />
             </Surface>
 
             <Surface className="p-6">
               <SurfaceTitle>Maiores gastos</SurfaceTitle>
               <SurfaceDescription className="mt-2">
-                Os itens que mais pesaram na obra até aqui.
+                Os itens que mais pesaram no período selecionado.
               </SurfaceDescription>
 
-              <ul className="mt-6 space-y-3">
-                {topExpenses.map((expense) => (
-                  <ExpenseLineItem
-                    expense={expense}
-                    highlightAmount
-                    key={expense.id}
-                  />
-                ))}
-              </ul>
+              <ExpenseList
+                emptyMessage="Nenhum gasto encontrado no período selecionado."
+                expenses={dashboard.topExpenses}
+                highlightAmount
+              />
             </Surface>
           </section>
         </div>
