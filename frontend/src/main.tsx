@@ -6,6 +6,14 @@ import { worker } from "@/mocks/browser";
 
 import "@/index.css";
 
+function renderApp() {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}
+
 async function enableMocking() {
   if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_MSW !== "true") {
     return;
@@ -16,11 +24,10 @@ async function enableMocking() {
   });
 }
 
-enableMocking().then(() => {
-  ReactDOM.createRoot(document.getElementById("root")!).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>,
-  );
-});
-
+void enableMocking()
+  .catch((error) => {
+    console.error("MSW failed to start. Rendering app without request mocking.", error);
+  })
+  .finally(() => {
+    renderApp();
+  });
