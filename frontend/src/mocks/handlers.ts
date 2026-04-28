@@ -15,6 +15,14 @@ import {
   mockGoogleCredential,
 } from "@/mocks/data/auth.mock";
 import { mockStages } from "@/mocks/data/stages.mock";
+import {
+  createMockShareLink,
+  disableMockShareLink,
+  getMockShareLink,
+  getPublicDashboardPeriod,
+  isValidPublicShareToken,
+  regenerateMockShareLink,
+} from "@/mocks/data/sharing.mock";
 
 export const handlers: RequestHandler[] = [
   http.post(/.*\/api\/auth\/google$/, async ({ request }) => {
@@ -129,6 +137,81 @@ export const handlers: RequestHandler[] = [
       requestedPeriod === "LAST_30_DAYS" || requestedPeriod === "ALL"
         ? requestedPeriod
         : "MONTH";
+
+    return HttpResponse.json(getMockDashboard(period));
+  }),
+  http.get(/.*\/api\/share-link$/, ({ request }) => {
+    const authorization = request.headers.get("authorization");
+
+    if (authorization !== `Bearer ${mockAuthToken}`) {
+      return HttpResponse.json(
+        {
+          message: "Unauthorized",
+        },
+        { status: 401 },
+      );
+    }
+
+    return HttpResponse.json(getMockShareLink());
+  }),
+  http.post(/.*\/api\/share-link$/, ({ request }) => {
+    const authorization = request.headers.get("authorization");
+
+    if (authorization !== `Bearer ${mockAuthToken}`) {
+      return HttpResponse.json(
+        {
+          message: "Unauthorized",
+        },
+        { status: 401 },
+      );
+    }
+
+    return HttpResponse.json(createMockShareLink());
+  }),
+  http.delete(/.*\/api\/share-link$/, ({ request }) => {
+    const authorization = request.headers.get("authorization");
+
+    if (authorization !== `Bearer ${mockAuthToken}`) {
+      return HttpResponse.json(
+        {
+          message: "Unauthorized",
+        },
+        { status: 401 },
+      );
+    }
+
+    return HttpResponse.json(disableMockShareLink());
+  }),
+  http.post(/.*\/api\/share-link\/regenerate$/, ({ request }) => {
+    const authorization = request.headers.get("authorization");
+
+    if (authorization !== `Bearer ${mockAuthToken}`) {
+      return HttpResponse.json(
+        {
+          message: "Unauthorized",
+        },
+        { status: 401 },
+      );
+    }
+
+    return HttpResponse.json(regenerateMockShareLink());
+  }),
+  http.get(/.*\/api\/public\/dashboard\/[^/]+$/, ({ request }) => {
+    const url = new URL(request.url);
+    const token = url.pathname.split("/").at(-1) ?? "";
+
+    if (!isValidPublicShareToken(token)) {
+      return HttpResponse.json(
+        {
+          message: "Public dashboard link was not found.",
+        },
+        { status: 404 },
+      );
+    }
+
+    const period = getPublicDashboardPeriod(
+      url.searchParams.get("period"),
+    );
 
     return HttpResponse.json(getMockDashboard(period));
   }),

@@ -58,17 +58,22 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(Long userId, DashboardPeriod period) {
         Construction construction = constructionService.getCurrentConstruction(userId);
+        return getDashboardForConstructionId(construction.getId(), period);
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardResponse getDashboardForConstructionId(Long constructionId, DashboardPeriod period) {
         Instant now = clock.instant();
         LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
         YearMonth currentMonth = YearMonth.from(today);
         YearMonth previousMonth = currentMonth.minusMonths(1);
 
         List<Expense> allExpenses = expenseRepository.findAll(
-                buildSpecification(construction.getId(), null, null),
+                buildSpecification(constructionId, null, null),
                 Sort.by(Sort.Direction.DESC, "occurredAt"));
         List<Expense> filteredExpenses = expenseRepository.findAll(
                 buildSpecification(
-                        construction.getId(),
+                        constructionId,
                         periodStart(period, today),
                         periodEnd(period, today)),
                 Sort.by(Sort.Direction.DESC, "occurredAt"));
