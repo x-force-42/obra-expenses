@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "@/app/App";
@@ -39,7 +39,7 @@ describe("App", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: /despesas/i }),
+      await screen.findByRole("heading", { name: /dashboard/i }),
     ).toBeInTheDocument();
     expect(window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBe(
       mockAuthToken,
@@ -55,6 +55,26 @@ describe("App", () => {
       await screen.findByRole("heading", {
         name: /controle da sua obra sem planilha/i,
       }),
+    ).toBeInTheDocument();
+  });
+
+  it("returns the user to the requested private route after login", async () => {
+    const user = userEvent.setup();
+
+    window.history.pushState({}, "", "/expenses");
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /controle da sua obra sem planilha/i,
+      }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /continuar com google/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /despesas/i }),
     ).toBeInTheDocument();
   });
 
@@ -92,5 +112,86 @@ describe("App", () => {
     expect(
       await screen.findByText(/google credential is invalid\./i),
     ).toBeInTheDocument();
+  });
+
+  it("clears an invalid stored session and shows the login screen again", async () => {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, mockAuthToken);
+    window.history.pushState({}, "", "/dashboard");
+
+    server.use(
+      http.get(/.*\/api\/auth\/me$/, () =>
+        HttpResponse.json(
+          {
+            message: "Unauthorized",
+          },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /controle da sua obra sem planilha/i,
+      }),
+    ).toBeInTheDocument();
+    expect(window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBeNull();
+  });
+
+  it("shows the session loading state while restoring access", async () => {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, mockAuthToken);
+    window.history.pushState({}, "", "/dashboard");
+
+    server.use(
+      http.get(/.*\/api\/auth\/me$/, async () => {
+        await delay(150);
+
+        return HttpResponse.json({
+          user: {
+            id: 1,
+            name: "Eliezer Alves",
+            email: "eliezer@email.com",
+            pictureUrl: "https://example.com/avatar.jpg",
+          },
+          currentConstruction: {
+            id: 1,
+            name: "Minha obra",
+            currentStage: {
+              id: 1,
+              name: "Fundação",
+            },
+          },
+        });
+      }),
+    );
+
+    render(<App />);
+
+    expect(
+      screen.getByText(/carregando sessão\.\.\./i),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /dashboard/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("logs out from the authenticated shell and clears the local session", async () => {
+    const user = userEvent.setup();
+
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, mockAuthToken);
+    window.history.pushState({}, "", "/dashboard");
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: /dashboard/i });
+    await user.click(screen.getAllByRole("button", { name: /sair/i })[0]);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /controle da sua obra sem planilha/i,
+      }),
+    ).toBeInTheDocument();
+    expect(window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBeNull();
   });
 });

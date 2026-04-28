@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { AuthenticatedShell } from "@/app/AuthenticatedShell";
 import { useAuthSession } from "@/features/auth";
 import { listCategories } from "@/features/categories";
 import {
@@ -10,26 +11,20 @@ import {
 } from "@/features/expenses";
 import { listStages } from "@/features/stages";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Surface,
+  SurfaceDescription,
+  SurfaceTitle,
+} from "@/shared/components/ui/surface";
+import { formatCurrency, formatDate } from "@/shared/lib/formatters";
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
-
-function formatOccurredAt(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(value));
-}
+const fieldClassName =
+  "mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3 text-base text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground";
 
 function ExpenseList({ expenses }: { expenses: ExpenseListItem[] }) {
   if (expenses.length === 0) {
     return (
-      <div className="rounded-[24px] border border-dashed border-border bg-white/70 p-5 text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-dashed border-border bg-background/70 px-5 py-6 text-sm leading-6 text-muted-foreground">
         Nenhum gasto cadastrado ainda.
       </div>
     );
@@ -39,28 +34,47 @@ function ExpenseList({ expenses }: { expenses: ExpenseListItem[] }) {
     <div className="space-y-3">
       {expenses.map((expense) => (
         <article
-          className="rounded-[24px] border border-border/80 bg-white/80 p-4 shadow-[0_18px_50px_rgba(85,57,16,0.08)]"
+          className="rounded-2xl border border-border/70 bg-background/70 px-4 py-4"
           key={expense.id}
         >
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold">
-                {expense.description || "Gasto sem descricao"}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {expense.description || "Gasto sem descrição"}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {expense.category.name} · {expense.stage.name}
               </p>
             </div>
-            <p className="text-sm font-semibold text-primary">
+            <p className="whitespace-nowrap text-sm font-semibold text-foreground">
               {formatCurrency(expense.amount)}
             </p>
           </div>
           <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            {formatOccurredAt(expense.occurredAt)}
+            {formatDate(expense.occurredAt)}
           </p>
         </article>
       ))}
     </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <Surface className="p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+        {value}
+      </p>
+    </Surface>
   );
 }
 
@@ -165,128 +179,174 @@ export function ExpensesPage() {
     }
   }
 
-  const isLoadingPage =
-    categoriesQuery.isLoading || stagesQuery.isLoading || expensesQuery.isLoading;
-  const pageError =
-    categoriesQuery.error || stagesQuery.error || expensesQuery.error;
+  const isBootstrappingPage = categoriesQuery.isLoading || stagesQuery.isLoading;
+  const isLoadingExpenses = expensesQuery.isLoading;
+  const pageError = categoriesQuery.error || stagesQuery.error;
+  const expensesError = expensesQuery.error;
   const expenses = expensesQuery.data?.content ?? [];
+  const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-5 py-10">
-      <section className="rounded-[28px] border border-border/80 bg-white/80 p-6 shadow-[0_24px_80px_rgba(85,57,16,0.08)]">
-        <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">
-          {currentConstruction?.name ?? "Minha obra"}
-        </p>
-        <h1 className="mt-3 text-2xl font-bold">Despesas</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Registre um gasto rapido e acompanhe os ultimos lancamentos da obra.
-        </p>
-        {currentConstruction?.currentStage ? (
-          <p className="mt-3 inline-flex rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
-            Etapa atual: {currentConstruction.currentStage.name}
-          </p>
-        ) : null}
+    <AuthenticatedShell
+      eyebrow={currentConstruction?.name ?? "Minha obra"}
+      subtitle="Cadastre um gasto sem atrito, mantenha a etapa atual em foco e acompanhe os lançamentos mais recentes da obra."
+      title="Despesas"
+    >
+      <section className="grid gap-4 sm:grid-cols-3">
+        <SummaryCard
+          label="Total carregado"
+          value={formatCurrency(totalSpent)}
+        />
+        <SummaryCard
+          label="Lançamentos"
+          value={String(expensesQuery.data?.totalElements ?? expenses.length)}
+        />
+        <SummaryCard
+          label="Etapa atual"
+          value={currentConstruction?.currentStage?.name ?? "Sem etapa"}
+        />
       </section>
 
-      <section className="mt-5 rounded-[28px] border border-border/80 bg-white/80 p-6 shadow-[0_24px_80px_rgba(85,57,16,0.08)]">
-        <h2 className="text-lg font-semibold">Novo gasto</h2>
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium">Valor</span>
-            <input
-              className="w-full rounded-[18px] border border-border bg-white px-4 py-3 text-base outline-none ring-0 placeholder:text-muted-foreground"
-              inputMode="decimal"
-              min="0.01"
-              onChange={(event) => setAmount(event.target.value)}
-              placeholder="0,00"
-              step="0.01"
-              type="number"
-              value={amount}
-            />
-          </label>
+      <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+        <div className="xl:sticky xl:top-28 xl:self-start">
+          <Surface className="p-6">
+            <SurfaceTitle>Novo gasto</SurfaceTitle>
+            <SurfaceDescription className="mt-2">
+              Preencha apenas o essencial. A data do lançamento é definida pelo backend.
+            </SurfaceDescription>
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium">Categoria</span>
-            <select
-              className="w-full rounded-[18px] border border-border bg-white px-4 py-3 text-base outline-none"
-              onChange={(event) => setCategoryId(event.target.value)}
-              value={categoryId}
-            >
-              <option value="">Selecione uma categoria</option>
-              {categoriesQuery.data?.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            {isBootstrappingPage ? (
+              <div className="mt-6 rounded-2xl border border-border/70 bg-background/70 px-4 py-5 text-sm text-muted-foreground">
+                Carregando categorias e etapas...
+              </div>
+            ) : null}
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium">Etapa</span>
-            <select
-              className="w-full rounded-[18px] border border-border bg-white px-4 py-3 text-base outline-none"
-              onChange={(event) => setStageId(event.target.value)}
-              value={stageId}
-            >
-              <option value="">Selecione uma etapa</option>
-              {stagesQuery.data?.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            {!isBootstrappingPage && pageError ? (
+              <div className="mt-6 rounded-2xl border border-destructive/20 bg-red-50 px-4 py-4 text-sm text-destructive">
+                {pageError instanceof Error
+                  ? pageError.message
+                  : "Não foi possível carregar os dados do formulário."}
+              </div>
+            ) : null}
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium">Descricao</span>
-            <textarea
-              className="min-h-24 w-full rounded-[18px] border border-border bg-white px-4 py-3 text-base outline-none placeholder:text-muted-foreground"
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Opcional"
-              value={description}
-            />
-          </label>
+            {!isBootstrappingPage && !pageError ? (
+              <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+                <label className="block">
+                  <span className="text-sm font-medium text-foreground">Valor</span>
+                  <input
+                    className={fieldClassName}
+                    inputMode="decimal"
+                    min="0.01"
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="0,00"
+                    step="0.01"
+                    type="number"
+                    value={amount}
+                  />
+                </label>
 
-          {formError ? (
-            <p className="text-sm text-destructive">{formError}</p>
-          ) : null}
+                <label className="block">
+                  <span className="text-sm font-medium text-foreground">
+                    Categoria
+                  </span>
+                  <select
+                    className={fieldClassName}
+                    onChange={(event) => setCategoryId(event.target.value)}
+                    value={categoryId}
+                  >
+                    <option value="">Selecione uma categoria</option>
+                    {categoriesQuery.data?.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-          <Button
-            className="w-full"
-            disabled={createExpenseMutation.isPending || isLoadingPage}
-            type="submit"
-          >
-            {createExpenseMutation.isPending ? "Salvando..." : "Salvar gasto"}
-          </Button>
-        </form>
-      </section>
+                <label className="block">
+                  <span className="text-sm font-medium text-foreground">Etapa</span>
+                  <select
+                    className={fieldClassName}
+                    onChange={(event) => setStageId(event.target.value)}
+                    value={stageId}
+                  >
+                    <option value="">Selecione uma etapa</option>
+                    {stagesQuery.data?.map((stage) => (
+                      <option key={stage.id} value={stage.id}>
+                        {stage.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-      <section className="mt-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Ultimos gastos</h2>
-          {expensesQuery.data ? (
-            <span className="text-sm text-muted-foreground">
-              {expensesQuery.data.totalElements} itens
-            </span>
-          ) : null}
+                <label className="block">
+                  <span className="text-sm font-medium text-foreground">
+                    Descricao
+                  </span>
+                  <textarea
+                    className={`${fieldClassName} min-h-28 resize-none`}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Opcional"
+                    value={description}
+                  />
+                </label>
+
+                {formError ? (
+                  <div className="rounded-2xl border border-destructive/20 bg-red-50 px-4 py-3 text-sm text-destructive">
+                    {formError}
+                  </div>
+                ) : null}
+
+                <Button
+                  className="w-full"
+                  disabled={createExpenseMutation.isPending || isBootstrappingPage}
+                  size="lg"
+                  type="submit"
+                >
+                  {createExpenseMutation.isPending ? "Salvando..." : "Salvar gasto"}
+                </Button>
+              </form>
+            ) : null}
+          </Surface>
         </div>
 
-        {isLoadingPage ? (
-          <div className="rounded-[24px] border border-border/80 bg-white/80 p-5 text-sm text-muted-foreground">
-            Carregando despesas...
+        <Surface className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <SurfaceTitle>Últimos gastos</SurfaceTitle>
+              <SurfaceDescription className="mt-2">
+                Acompanhe os lançamentos recentes e revise rapidamente categoria,
+                etapa e valor.
+              </SurfaceDescription>
+            </div>
+            {expensesQuery.data ? (
+              <span className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
+                {expensesQuery.data.totalElements} itens
+              </span>
+            ) : null}
           </div>
-        ) : null}
 
-        {!isLoadingPage && pageError ? (
-          <div className="rounded-[24px] border border-border/80 bg-white/80 p-5 text-sm text-destructive">
-            {pageError instanceof Error
-              ? pageError.message
-              : "Nao foi possivel carregar as despesas."}
-          </div>
-        ) : null}
+          {isLoadingExpenses ? (
+            <div className="mt-6 rounded-2xl border border-border/70 bg-background/70 px-4 py-5 text-sm text-muted-foreground">
+              Carregando despesas...
+            </div>
+          ) : null}
 
-        {!isLoadingPage && !pageError ? <ExpenseList expenses={expenses} /> : null}
+          {!isLoadingExpenses && expensesError ? (
+            <div className="mt-6 rounded-2xl border border-destructive/20 bg-red-50 px-4 py-4 text-sm text-destructive">
+              {expensesError instanceof Error
+                ? expensesError.message
+                : "Não foi possível carregar as despesas."}
+            </div>
+          ) : null}
+
+          {!isLoadingExpenses && !expensesError ? (
+            <div className="mt-6">
+              <ExpenseList expenses={expenses} />
+            </div>
+          ) : null}
+        </Surface>
       </section>
-    </main>
+    </AuthenticatedShell>
   );
 }

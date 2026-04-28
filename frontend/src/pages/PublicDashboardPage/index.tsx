@@ -1,13 +1,20 @@
+import { Surface, SurfaceDescription, SurfaceTitle } from "@/shared/components/ui/surface";
+
 export function PublicDashboardPage() {
   return (
-    <main className="mx-auto min-h-screen max-w-md px-5 py-10">
-      <section className="rounded-[28px] border border-border/80 bg-white/80 p-6 shadow-[0_24px_80px_rgba(85,57,16,0.08)]">
-        <h1 className="text-2xl font-bold">Dashboard publico</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          O compartilhamento publico ainda nao faz parte deste bootstrap.
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-5 py-10 sm:px-6">
+      <Surface className="p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Compartilhamento público
         </p>
-      </section>
+        <SurfaceTitle className="mt-3 text-2xl">
+          Dashboard público indisponível neste momento
+        </SurfaceTitle>
+        <SurfaceDescription className="mt-3">
+          Esta URL existe apenas como placeholder visual no bootstrap atual. O
+          compartilhamento por link ainda não faz parte da implementação funcional.
+        </SurfaceDescription>
+      </Surface>
     </main>
   );
 }
-
