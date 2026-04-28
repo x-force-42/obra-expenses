@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/shared/lib/api-client";
+import { fetchApiJson } from "@/shared/lib/api-client";
 
 export type StageSummary = {
   id: number;
@@ -30,51 +30,24 @@ export type AuthMeResponse = {
   currentConstruction: CurrentConstruction;
 };
 
-type ErrorResponse = {
-  message?: string;
-};
-
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  if (response.ok) {
-    return (await response.json()) as T;
-  }
-
-  let message = "Unexpected request failure.";
-
-  try {
-    const body = (await response.json()) as ErrorResponse;
-    if (body.message) {
-      message = body.message;
-    }
-  } catch {
-    // Keep the default message when the response has no JSON body.
-  }
-
-  throw new Error(message);
-}
-
 export async function authenticateWithGoogle(
   credential: string,
 ): Promise<AuthResponse> {
-  const response = await fetch(buildApiUrl("/auth/google"), {
+  return fetchApiJson<AuthResponse>("/auth/google", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ credential }),
   });
-
-  return parseJsonResponse<AuthResponse>(response);
 }
 
 export async function getAuthenticatedSession(
   accessToken: string,
 ): Promise<AuthMeResponse> {
-  const response = await fetch(buildApiUrl("/auth/me"), {
+  return fetchApiJson<AuthMeResponse>("/auth/me", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
   });
-
-  return parseJsonResponse<AuthMeResponse>(response);
 }

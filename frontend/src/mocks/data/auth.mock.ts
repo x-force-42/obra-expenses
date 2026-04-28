@@ -1,4 +1,5 @@
 import type { AuthMeResponse, AuthResponse } from "@/features/auth/api/authApi";
+import { mockCurrentConstruction } from "@/mocks/data/construction.mock";
 
 export const mockGoogleCredential = "mock-google-credential";
 export const mockAuthToken = "mock-app-jwt";
@@ -12,14 +13,7 @@ export const mockAuthSession: AuthResponse = {
     email: "eliezer@email.com",
     pictureUrl: "https://example.com/avatar.jpg",
   },
-  currentConstruction: {
-    id: 1,
-    name: "Minha obra",
-    currentStage: {
-      id: 1,
-      name: "Fundação",
-    },
-  },
+  currentConstruction: mockCurrentConstruction,
 };
 
 export const mockAuthenticatedSession: AuthMeResponse = {

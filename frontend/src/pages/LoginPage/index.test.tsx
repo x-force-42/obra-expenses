@@ -39,7 +39,7 @@ describe("App", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: /dashboard/i }),
+      await screen.findByRole("heading", { name: /despesas/i }),
     ).toBeInTheDocument();
     expect(window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBe(
       mockAuthToken,
@@ -60,12 +60,12 @@ describe("App", () => {
 
   it("restores the authenticated session from localStorage", async () => {
     window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, mockAuthToken);
-    window.history.pushState({}, "", "/dashboard");
+    window.history.pushState({}, "", "/expenses");
 
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: /dashboard/i }),
+      await screen.findByRole("heading", { name: /despesas/i }),
     ).toBeInTheDocument();
   });
 
