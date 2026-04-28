@@ -33,7 +33,7 @@ export function createAppRouter() {
       ),
     },
     {
-      path: "/public/:token",
+      path: "/public/dashboard/:token",
       element: <PublicDashboardPage />,
     },
   ]);

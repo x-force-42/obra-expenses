@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/health", "/api/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/public/dashboard/**", "/api/public/dashboard/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/google", "/api/auth/google").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())

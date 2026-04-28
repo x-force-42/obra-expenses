@@ -126,6 +126,7 @@ SPRING_DATASOURCE_PASSWORD=<strong-password>
 JWT_SECRET=<strong-random-secret>
 GOOGLE_CLIENT_ID=change_me
 APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://*.amplifyapp.com,http://localhost:5173
+APP_PUBLIC_BASE_URL=https://<AMPLIFY_APP_DOMAIN>
 ```
 
 Do not commit this file.

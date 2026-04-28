@@ -8,6 +8,7 @@ import { AUTH_TOKEN_STORAGE_KEY } from "@/features/auth";
 import { mockAuthSession, mockAuthToken } from "@/mocks/data/auth.mock";
 import { getMockDashboard } from "@/mocks/data/dashboard.mock";
 import { resetMockExpenses } from "@/mocks/data/expenses.mock";
+import { resetMockShareLink } from "@/mocks/data/sharing.mock";
 import { server } from "@/mocks/server";
 
 describe("DashboardPage", () => {
@@ -16,6 +17,7 @@ describe("DashboardPage", () => {
     window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, mockAuthToken);
     window.history.pushState({}, "", "/dashboard");
     resetMockExpenses();
+    resetMockShareLink();
   });
 
   it("renders the financial overview using loaded expenses", async () => {
@@ -114,5 +116,28 @@ describe("DashboardPage", () => {
       await screen.findByText(/não foi possível carregar o dashboard/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/falha ao carregar dashboard\./i)).toBeInTheDocument();
+  });
+
+  it("allows the owner to generate and disable a public share link", async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(
+      await screen.findByText(/nenhum link público ativo no momento/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /gerar link público/i }));
+
+    expect(await screen.findByText(/link ativo/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /abrir dashboard público/i }),
+    ).toHaveAttribute("href", expect.stringContaining("/public/dashboard/"));
+
+    await user.click(screen.getByRole("button", { name: /desativar link/i }));
+
+    expect(
+      await screen.findByText(/nenhum link público ativo no momento/i),
+    ).toBeInTheDocument();
   });
 });

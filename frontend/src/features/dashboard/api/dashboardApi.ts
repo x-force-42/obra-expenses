@@ -71,3 +71,14 @@ export async function getDashboard(
     },
   });
 }
+
+export async function getPublicDashboard(
+  token: string,
+  period: DashboardPeriod = "ALL",
+): Promise<DashboardResponse> {
+  const params = new URLSearchParams({ period });
+
+  return fetchApiJson<DashboardResponse>(
+    `/public/dashboard/${token}?${params.toString()}`,
+  );
+}

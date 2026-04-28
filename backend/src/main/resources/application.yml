@@ -24,3 +24,5 @@ app:
     google-client-id: ${GOOGLE_CLIENT_ID:replace-me}
   cors:
     allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173}
+  sharing:
+    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}
